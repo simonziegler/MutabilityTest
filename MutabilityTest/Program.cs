@@ -1,5 +1,8 @@
 ﻿using System;
 using Newtonsoft.Json;
+using MessagePack;
+using System.ComponentModel.DataAnnotations;
+using System.Runtime.Serialization;
 
 namespace MutabilityTest
 {
@@ -7,12 +10,18 @@ namespace MutabilityTest
     {
         static void Main(string[] args)
         {
+            // Initialize Person
             var person1 = new Person()
             {
                 Name = "Bill",
                 Age = 32
             };
             Console.WriteLine("Initial object: " + person1);
+
+            // Mutate and JSON serialize/deserialize Person while mutable
+            Console.WriteLine();
+            Console.WriteLine("Mutate and JSON serialize/deserialize Person while mutable");
+            Console.WriteLine("----------------------------------------------------------");
 
             person1.Age = 42;
             Console.WriteLine("Age changed: " + person1);
@@ -33,34 +42,82 @@ namespace MutabilityTest
                 Console.WriteLine(e.Message);
             }
 
+            // Mutate and MessagePack serialize/deserialize Person while mutable
+            Console.WriteLine();
+            Console.WriteLine("Mutate and MessagePack serialize/deserialize Person while mutable");
+            Console.WriteLine("-----------------------------------------------------------------");
+            var msg = MessagePackSerializer.Serialize(person1);
+            var person3 = MessagePackSerializer.Deserialize<Person>(msg);
+            Console.WriteLine("Deserialized mutable: " + person3);
+
+            try
+            {
+                person3.Name = "Ted";
+                Console.WriteLine("Name change on deserialized mutable: " + person3);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+            }
+
+            // Freeze and JSON serialize/deserialize, then attempt (and fail) mutation
+            Console.WriteLine();
+            Console.WriteLine("Freeze and JSON serialize/deserialize, then attempt (and fail) mutation");
+            Console.WriteLine("-----------------------------------------------------------------------");
+
             person1.Freeze();
             Console.WriteLine("Post freeze: " + person1);
 
             jsonString = JsonConvert.SerializeObject(person1);
             Console.WriteLine("Immutable JSON: " + jsonString);
 
-            var person3 = JsonConvert.DeserializeObject<Person>(jsonString);
-            Console.WriteLine("Deserialized immutable: " + person3);
+            var person4 = JsonConvert.DeserializeObject<Person>(jsonString);
+            Console.WriteLine("Deserialized immutable: " + person4);
 
             try
             {
-                person3.Name = "Ted";
-                Console.WriteLine("Name change on deserialized immutable: " + person3);
+                person4.Name = "Ted";
+                Console.WriteLine("Name change on deserialized immutable: " + person4);
             }
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
             }
+
+            // Freeze and JSON serialize/deserialize, then attempt (and fail) mutation
+            Console.WriteLine();
+            Console.WriteLine("Freeze and MessagePack serialize/deserialize, then attempt (and fail) mutation");
+            Console.WriteLine("------------------------------------------------------------------------------");
+
+            Console.WriteLine("Pre serialization: " + person1);
+            msg = MessagePackSerializer.Serialize(person1);
+            var person5 = MessagePackSerializer.Deserialize<Person>(msg);
+            Console.WriteLine("Deserialized immutable: " + person5);
+
+            try
+            {
+                person5.Name = "Ted";
+                Console.WriteLine("Name change on deserialized immutable: " + person5);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+            }
+
+            Console.WriteLine();
+            Console.WriteLine();
         }
     }
 
 
+    [MessagePackObject(keyAsPropertyName: true)]
     public abstract class Popsicle
     {
         private readonly bool performFreezeTest = false;
-        
+
+        private bool frozen = false;
         [JsonProperty]
-        private bool Frozen { get; set; } = false;
+        public bool Frozen { get => frozen; set => frozen = frozen ? frozen : value; }
 
         public void Freeze() => Frozen = true;
 
@@ -79,9 +136,15 @@ namespace MutabilityTest
         {
             performFreezeTest = true;
         }
+
+        public override string ToString()
+        {
+            return Frozen ? "Immutable" : "Mutable";
+        }
     }
 
 
+    [MessagePackObject(keyAsPropertyName:true)]
     public class Person : Popsicle
     {
         private string name;
@@ -93,7 +156,7 @@ namespace MutabilityTest
 
         public override string ToString()
         {
-            return $"{Name}, {Age}";
+            return $"{Name}, {Age}, {base.ToString()}";
         }
     }
 }
