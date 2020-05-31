@@ -64,11 +64,15 @@ namespace MutabilityTest
 
         public void Freeze() => Frozen = true;
 
-        protected void FreezeTest(Func<bool> valueEquality)
+        protected void Setter<T>(Func<bool> equalityTest, Func<T> setter)
         {
             if (performFreezeTest && Frozen) throw new InvalidOperationException("Cannot set a property on a frozen instance");
 
-            // Do some more stuff to notify observers of a change.
+            if (!equalityTest())
+            {
+                setter();
+                // Do some more stuff to notify observers of a change.
+            }
         }
 
         public Popsicle()
@@ -81,11 +85,11 @@ namespace MutabilityTest
     public class Person : Popsicle
     {
         private string name;
-        public string Name { get => name; set { FreezeTest(() => value == name); name = value; } }
+        public string Name { get => name; set => Setter(() => value == name, () => name = value); }
         
         
         private double age;
-        public double Age { get => age; set { FreezeTest(() => value == age); age = value; } }
+        public double Age { get => age; set => Setter(() => value == age, () => age = value); }
 
         public override string ToString()
         {
